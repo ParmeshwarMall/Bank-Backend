@@ -7,7 +7,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const nodemailer = require("nodemailer");
-const multer = require("multer");
 const bcrypt = require("bcrypt");
 
 main()
@@ -65,13 +64,21 @@ app.post("/", async (req, res) => {
       if (isPassCrt) {
         res.send("exist");
       } else {
-        res.send("Invalid Username or Password");
+        res.send("Invalid Password");
       }
+    }
+    else
+    {
+      res.send("Invalid Username");
     }
   } catch (err) {
     res.status(500).send(err.message);
   }
 });
+
+app.get("/",(req,res)=>{
+  res.send("Hello")
+})
 
 app.post("/form", async (req, res) => {
   const {
