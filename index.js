@@ -16,8 +16,11 @@ main()
   .catch((err) => console.log(err));
 
 async function main() {
-  await mongoose.connect("mongodb://127.0.0.1:27017/BankUserDetails");
+  await mongoose.connect("mongodb+srv://parmeshwarmall1920:3699@cluster0.uupe2xv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0");
 }
+// async function main() {
+//   await mongoose.connect("mongodb://127.0.0.1:27017/BankUserDetails");
+// }
 
 const userSchema = mongoose.Schema({
   name: String,
