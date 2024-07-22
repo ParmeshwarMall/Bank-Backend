@@ -9,18 +9,19 @@ app.use(express.urlencoded({ extended: true }));
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcrypt");
 
+
 main()
   .then(() => {
     console.log("Connection success");
   })
   .catch((err) => console.log(err));
 
-async function main() {
-  await mongoose.connect("mongodb+srv://parmeshwarmall1920:3699@cluster0.uupe2xv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0");
-}
 // async function main() {
-//   await mongoose.connect("mongodb://127.0.0.1:27017/BankUserDetails");
+//   await mongoose.connect("mongodb+srv://parmeshwarmall1920:3699@cluster0.uupe2xv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0");
 // }
+async function main() {
+  await mongoose.connect("mongodb://127.0.0.1:27017/BankUserDetails");
+}
 
 const userSchema = mongoose.Schema({
   name: String,
@@ -79,9 +80,9 @@ app.post("/", async (req, res) => {
   }
 });
 
-app.get("/",(req,res)=>{
-  res.send("Hello")
-})
+// app.get("/",(req,res)=>{
+//   res.send("Hello")
+// })
 
 app.post("/form", async (req, res) => {
   const {
@@ -460,10 +461,18 @@ app.post("/email", async (req, res) => {
 
     res.send("Email send successfully");
   }
-
   main().catch(console.error);
 });
 
+app.get('/allusers', async (req, res) => {
+  try {
+    const users = await User.find();
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 app.listen(port, () => {
-  console.log("Server start");
+  console.log(`Server start on port ${port}`);
 });
