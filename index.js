@@ -3,12 +3,29 @@ const cors = require("cors");
 const port = 8000;
 const mongoose = require("mongoose");
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcrypt");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
 
+require('dotenv').config();
+
+const secretKey = process.env.SECRET_KEY;
+const mongoUrl1 = process.env.MONGO_URL1;
+const mongoUrl2 = process.env.MONGO_URL2;
 
 main()
   .then(() => {
@@ -17,10 +34,13 @@ main()
   .catch((err) => console.log(err));
 
 async function main() {
-  await mongoose.connect("mongodb+srv://parmeshwarmall1920:3699@cluster0.uupe2xv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0");
+  await mongoose.connect(
+    mongoUrl2
+  );
 }
+
 // async function main() {
-//   await mongoose.connect("mongodb://127.0.0.1:27017/BankUserDetails");
+//   await mongoose.connect(mongoUrl1);
 // }
 
 const userSchema = mongoose.Schema({
@@ -33,6 +53,8 @@ const userSchema = mongoose.Schema({
   pan: String,
   username: String,
   password: String,
+  image: String,
+  signature: String,
   acctype: String,
   amount: Number,
   add: String,
@@ -45,6 +67,20 @@ const userTrans = mongoose.Schema({
   transdate: String,
   transtime: String,
 });
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + "-" + file.originalname);
+  },
+});
+
+const upload = multer({ storage: storage });
 
 const User = mongoose.model("users", userSchema);
 const Transaction = mongoose.model("transactions", userTrans);
@@ -59,91 +95,114 @@ var hours = currentDate.getHours();
 var minutes = currentDate.getMinutes();
 var seconds = currentDate.getSeconds();
 
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res.status(403).send('Token is required');
+  }
+
+  try {
+    const decoded = jwt.verify(token, secretKey); // Verify the token
+    req.user = decoded; // Attach user info to the request object
+    next();
+  } catch (err) {
+    return res.status(401).send('Invalid token');
+  }
+};
+
 app.post("/", async (req, res) => {
   const { username, userpassword } = req.body;
+
   try {
-    const userExist = await User.findOne({ username: username });
-    if (userExist) {
-      const isPassCrt = await bcrypt.compare(userpassword, userExist.password);
-      if (isPassCrt) {
-        res.send("exist");
-      } else {
-        res.send("Invalid Password");
-      }
+    const userExist = await User.findOne({ username });
+    if (!userExist) {
+      return res.send("Invalid Username");
     }
-    else
-    {
-      res.send("Invalid Username");
+
+    const isPassCrt = await bcrypt.compare(userpassword, userExist.password);
+    if (isPassCrt) {
+      const token = jwt.sign({ username }, secretKey, { expiresIn: "1h" });
+      res.cookie('token', token, { httpOnly: true, secure: true });
+      return res.send("exist");
+    } else {
+      return res.send("Invalid Password");
     }
   } catch (err) {
-    res.status(500).send(err.message);
+    console.error(err);
+    res.status(500).send("An error occurred. Please try again later.");
   }
 });
 
-// app.get("/",(req,res)=>{
-//   res.send("Hello")
-// })
+app.post(
+  "/form",
+  upload.fields([
+    { name: "image", maxCount: 1 },
+    { name: "signature", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const {
+      name,
+      fname,
+      dob,
+      email,
+      contact,
+      aadhaar,
+      pan,
+      username,
+      password,
+      acctype,
+      amount,
+      add,
+    } = req.body;
 
-app.post("/form", async (req, res) => {
-  const {
-    name,
-    fname,
-    dob,
-    email,
-    contact,
-    aadhaar,
-    pan,
-    username,
-    password,
-    acctype,
-    amount,
-    add,
-  } = req.body;
-  try {
-    const userExist = await User.findOne({ username: username });
-    if (userExist) {
-      res.send("exist");
-    } else {
-      const hashPass = await bcrypt.hash(password, 12);
-      const newUser = new User({
-        name,
-        fname,
-        dob,
-        email,
-        contact,
-        aadhaar,
-        pan,
-        username,
-        password: hashPass,
-        acctype,
-        amount,
-        add,
-      });
-      const newTrans = new Transaction({
-        username,
-        amount,
-        mode: "Credit",
-        transdate: day + "/" + month + "/" + year,
-        transtime: hours + ":" + minutes + ":" + seconds,
-      });
-      await newUser.save();
-      await newTrans.save();
+    try {
+      const userExist = await User.findOne({ username: username });
+      if (userExist) {
+        res.send("exist");
+      } else {
+        const hashPass = await bcrypt.hash(password, 12);
+        const newUser = new User({
+          name,
+          fname,
+          dob,
+          email,
+          contact,
+          aadhaar,
+          pan,
+          username,
+          password: hashPass,
+          image: req.files.image[0].path,
+          signature: req.files.signature[0].path,
+          acctype,
+          amount,
+          add,
+        });
+        const newTrans = new Transaction({
+          username,
+          amount,
+          mode: "Credit",
+          transdate: day + "/" + month + "/" + year,
+          transtime: hours + ":" + minutes + ":" + seconds,
+        });
+        await newUser.save();
+        await newTrans.save();
 
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        secure: true,
-        port: 465,
-        auth: {
-          user: "parmeshwarmall1920@gmail.com",
-          pass: "omns gzzy ibch nhsl",
-        },
-      });
-      async function main() {
-        const info = await transporter.sendMail({
-          from: " <parmeshwarmall1920@gmail.com>",
-          to: email,
-          subject: "Welcome to Bharat Bank!",
-          html: `<h3>Dear ${name}</h3>
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          secure: true,
+          port: 465,
+          auth: {
+            user: "parmeshwarmall1920@gmail.com",
+            pass: "omns gzzy ibch nhsl",
+          },
+        });
+        async function main() {
+          const info = await transporter.sendMail({
+            from: " <parmeshwarmall1920@gmail.com>",
+            to: email,
+            subject: "Welcome to Bharat Bank!",
+            html: `<h3>Dear ${name}</h3>
                            <p>Thank you for choosing <strong>Bharat Bank</strong> for your banking needs. We're thrilled to welcome you to our community!</p>
                            <p>Your new account has been successfully opened, and we're here to assist you every step of the way. Whether you have questions about your account, need assistance with banking services, or want to explore our range of products, our dedicated team is ready to help.</p>
                            <p>If you haven't already, you'll soon receive a welcome packet with important information about your account. In the meantime, feel free to explore our online banking platform and familiarize yourself with the features available to you.</P>
@@ -152,16 +211,17 @@ app.post("/form", async (req, res) => {
                            <p>Parmeshwar Mall</p>
                            <p>Bharat Bank</p>
                            <p>7706811920</p>`,
-        });
-      }
-      main().catch(console.error);
+          });
+        }
+        main().catch(console.error);
 
-      res.send("Account Open Successfully");
+        res.send("Account Open Successfully");
+      }
+    } catch (err) {
+      res.status(500).send(err.message);
     }
-  } catch (err) {
-    res.status(500).send(err.message);
   }
-});
+);
 
 app.post("/balance", async (req, res) => {
   const { username, password } = req.body;
@@ -294,7 +354,7 @@ app.post("/transfer", async (req, res) => {
 });
 
 app.post("/delete", async (req, res) => {
-  const { username,password } = req.body;
+  const { username, password } = req.body;
   try {
     const user = await User.findOne({ username: username });
     if (user) {
@@ -303,8 +363,7 @@ app.post("/delete", async (req, res) => {
         await user.deleteOne();
         await Transaction.deleteMany({ username: username });
         res.send("Account delete successfully");
-      }
-      else{
+      } else {
         res.send("Invalid Password");
       }
     } else {
@@ -315,39 +374,14 @@ app.post("/delete", async (req, res) => {
   }
 });
 
-app.post("/transaction", async (req, res) => {
-  const { username, password } = req.body;
+app.get("/transaction", verifyToken, async (req, res) => {
   try {
-    const user = await User.findOne({ username: username });
-    if (user) {
-      const isPassCrt = await bcrypt.compare(password, user.password);
-      if (isPassCrt) {
-        const transactions = await Transaction.find({ username: username });
-        res.send(transactions);
-      } else {
-        res.send("InvalidP");
-      }
-    } else {
-      res.send("InvalidU");
-    }
+      const transactions = await Transaction.find({ username: req.user.username });
+      res.send(transactions);
   } catch (err) {
     res.status(500).send(err.message);
   }
 });
-
-// app.post("/usertransaction", async (req, res) => {
-//   const { username } = req.body;
-//   try {
-//     const user = await Transaction.find({ username: username });
-//     if (user == "") {
-//       res.send("Invalid");
-//     } else {
-//       res.send(user);
-//     }
-//   } catch (err) {
-//     res.status(500).send(err.message);
-//   }
-// });
 
 app.post("/passchg", async (req, res) => {
   const { username, password } = req.body;
@@ -379,6 +413,17 @@ app.post("/userdetail", async (req, res) => {
     } else {
       res.send("InvalidU");
     }
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+
+app.get("/detail", verifyToken, async (req, res) => {
+
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    res.send(user);
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -464,14 +509,30 @@ app.post("/email", async (req, res) => {
   main().catch(console.error);
 });
 
-app.get('/allusers', async (req, res) => {
+app.get("/allusers", async (req, res) => {
   try {
     const users = await User.find();
-    res.json(users);
+    const transactions = await Transaction.find();
+    res.json({
+      users,
+      totalUsers: users.length,
+      totalTransactions: transactions.length,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
+
+app.get("/alltransactions", async (req, res) => {
+  try {
+    const transactions = await Transaction.find();
+    res.json(transactions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get("/");
 
 app.listen(port, () => {
   console.log(`Server start on port ${port}`);
