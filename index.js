@@ -95,8 +95,8 @@ var hours = currentDate.getHours();
 var minutes = currentDate.getMinutes();
 var seconds = currentDate.getSeconds();
 
-const verifyToken = (req, res, next) => {
-  const token = req.cookies.token;
+const verifyToken = async (req, res, next) => {
+  const token = await req.cookies.token;
 
   if (!token) {
     return res.status(403).send('Token is required');
