@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const app = express();
 app.use(
   cors({
-    origin: "https://bharat-bank.netlify.app/",
+    origin: "https://bharat-bank.netlify.app",
     credentials: true,
   })
 );
