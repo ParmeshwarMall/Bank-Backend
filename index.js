@@ -123,7 +123,11 @@ app.post("/", async (req, res) => {
     const isPassCrt = await bcrypt.compare(userpassword, userExist.password);
     if (isPassCrt) {
       const token = jwt.sign({ username }, secretKey, { expiresIn: "1h" });
-      res.cookie('token', token, { httpOnly: true, secure: true });
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: true, // true if using HTTPS
+        sameSite: 'None', // Required for cross-origin cookies
+     });
       return res.send("exist");
     } else {
       return res.send("Invalid Password");
