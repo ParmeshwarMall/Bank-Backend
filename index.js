@@ -378,7 +378,22 @@ app.post("/delete", async (req, res) => {
   }
 });
 
-app.get("/transaction", verifyToken, async (req, res) => {
+app.post("/transaction",async(req,res)=>{
+  const {username,password}=req.body;
+  try {
+    const transaction = await Transaction.find({ username: username });
+    if (transaction) {
+        res.send(transaction);
+      }
+    else {
+      res.send("InvalidU");
+    }
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+})
+
+app.get("/usertransaction", verifyToken, async (req, res) => {
   try {
       const transactions = await Transaction.find({ username: req.user.username });
       res.send(transactions);
