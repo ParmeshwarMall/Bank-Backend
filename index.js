@@ -622,8 +622,8 @@ app.get("/alltransactions",authMiddleware, async (req, res) => {
 app.post("/userlogout", (req, res) => {
   res.clearCookie("token", {
     httpOnly: true,
-    secure: false,
-    sameSite: "strict",
+    secure: true,
+    sameSite: "None",
   });
 
   return res.json({ message: "Logout successful" });
@@ -632,8 +632,8 @@ app.post("/userlogout", (req, res) => {
 app.post("/adminlogout", (req, res) => {
   res.clearCookie("adminToken", {
     httpOnly: true,
-    secure: false,
-    sameSite: "strict",
+    secure: true,
+    sameSite: "None"
   });
 
   return res.json({ message: "Logout successful" });
