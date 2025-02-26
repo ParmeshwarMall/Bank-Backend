@@ -131,8 +131,8 @@ app.post("/admin",(req,res)=>{
 
     res.cookie("adminToken", token, {
       httpOnly: true,
-      secure: false,
-      sameSite: "strict",
+      secure: true, 
+      sameSite: "None",
     });
 
     return res.json({ message: "Login successful" });
