@@ -105,6 +105,42 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
+const authMiddleware = (req, res, next) => {
+  const token = req.cookies.adminToken;
+
+  if (!token) {
+    return res.status(403).json({ message: "Access denied. No token provided." });
+  }
+
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    if (decoded.id === "admin") {
+      next();
+    } else {
+      return res.status(403).json({ message: "Access denied" });
+    }
+  } catch (error) {
+    return res.status(403).json({ message: "Invalid token" });
+  }
+};
+
+app.post("/admin",(req,res)=>{
+  const {id, password} = req.body;
+  if (id === "admin" && password === "1234") {
+    const token = jwt.sign({ id: "admin" }, secretKey, { expiresIn: "1h" });
+
+    res.cookie("adminToken", token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "strict",
+    });
+
+    return res.json({ message: "Login successful" });
+  } else {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+})
+
 app.post("/", async (req, res) => {
   const { username, userpassword } = req.body;
 
@@ -260,7 +296,7 @@ app.post(
 );
 
 
-app.post("/balance", async (req, res) => {
+app.post("/balance",authMiddleware, async (req, res) => {
   const { username, password } = req.body;
   try {
     const user = await User.findOne({ username: username });
@@ -280,7 +316,7 @@ app.post("/balance", async (req, res) => {
   }
 });
 
-app.post("/deposite", async (req, res) => {
+app.post("/deposite",authMiddleware, async (req, res) => {
   const { amount, username, password } = req.body;
   try {
     const user = await User.findOne({ username: username });
@@ -310,7 +346,7 @@ app.post("/deposite", async (req, res) => {
   }
 });
 
-app.post("/withdraw", async (req, res) => {
+app.post("/withdraw",authMiddleware, async (req, res) => {
   const { amount, username, password } = req.body;
   try {
     const user = await User.findOne({ username: username });
@@ -346,7 +382,7 @@ app.post("/withdraw", async (req, res) => {
   }
 });
 
-app.post("/transfer", async (req, res) => {
+app.post("/transfer",authMiddleware, async (req, res) => {
   const { senusername, password, recusername, amount } = req.body;
   try {
     const sen = await User.findOne({ username: senusername });
@@ -390,7 +426,7 @@ app.post("/transfer", async (req, res) => {
   }
 });
 
-app.post("/delete", async (req, res) => {
+app.post("/delete",authMiddleware, async (req, res) => {
   const { username, password } = req.body;
   try {
     const user = await User.findOne({ username: username });
@@ -411,7 +447,7 @@ app.post("/delete", async (req, res) => {
   }
 });
 
-app.post("/transaction", async (req, res) => {
+app.post("/transaction",authMiddleware, async (req, res) => {
   const { username, password } = req.body;
   try {
     const transaction = await Transaction.find({ username: username });
@@ -452,7 +488,7 @@ app.post("/passchg", async (req, res) => {
   }
 });
 
-app.post("/userdetail", async (req, res) => {
+app.post("/userdetail",authMiddleware, async (req, res) => {
   const { username, password } = req.body;
   try {
     const user = await User.findOne({ username: username });
@@ -560,7 +596,7 @@ app.post("/email", async (req, res) => {
   main().catch(console.error);
 });
 
-app.get("/allusers", async (req, res) => {
+app.get("/allusers",authMiddleware, async (req, res) => {
   try {
     const users = await User.find();
     const transactions = await Transaction.find();
@@ -574,13 +610,33 @@ app.get("/allusers", async (req, res) => {
   }
 });
 
-app.get("/alltransactions", async (req, res) => {
+app.get("/alltransactions",authMiddleware, async (req, res) => {
   try {
     const transactions = await Transaction.find();
     res.json(transactions);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+});
+
+app.post("/userlogout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: false,
+    sameSite: "strict",
+  });
+
+  return res.json({ message: "Logout successful" });
+});
+
+app.post("/adminlogout", (req, res) => {
+  res.clearCookie("adminToken", {
+    httpOnly: true,
+    secure: false,
+    sameSite: "strict",
+  });
+
+  return res.json({ message: "Logout successful" });
 });
 
 app.get("/");
