@@ -317,27 +317,22 @@ app.post("/balance", authMiddleware, async (req, res) => {
 });
 
 app.post("/deposite", authMiddleware, async (req, res) => {
-  const { amount, username, password } = req.body;
+  const { amount, username } = req.body;
   try {
     const user = await User.findOne({ username: username });
     if (user) {
-      const isPassCrt = await bcrypt.compare(password, user.password);
-      if (isPassCrt) {
-        const newAmount = user.amount + Number(amount);
-        user.amount = newAmount;
-        const newTrans = new Transaction({
-          username,
-          amount,
-          mode: "Credit",
-          transdate: day + "/" + month + "/" + year,
-          transtime: hours + ":" + minutes + ":" + seconds,
-        });
-        await user.save();
-        await newTrans.save();
-        res.send(user.amount.toString());
-      } else {
-        res.send("InvalidP");
-      }
+      const newAmount = user.amount + Number(amount);
+      user.amount = newAmount;
+      const newTrans = new Transaction({
+        username,
+        amount,
+        mode: "Credit",
+        transdate: day + "/" + month + "/" + year,
+        transtime: hours + ":" + minutes + ":" + seconds,
+      });
+      await user.save();
+      await newTrans.save();
+      res.send(user.amount.toString());
     } else {
       res.send("InvalidU");
     }
@@ -662,13 +657,13 @@ app.post("/otpsend", async (req, res) => {
     });
 
     await transporter.sendMail({
-      from: `"Bharat Bank" <${process.env.EMAIL_USER}>`, 
+      from: `"Bharat Bank" <${process.env.EMAIL_USER}>`, // Corrected
       to: email,
       subject: "Verify Your Email!",
-      html: otp_email_template.replace("{OTP_CODE}", otp),
+      html: otp_email_template.replace("{OTP_CODE}", otp), // Corrected replacement
     });
 
-    res.status(200).json({ message: "OTP sent successfully", otp });
+    res.status(200).json({ message: "OTP sent successfully", otp }); // Only return OTP for testing; remove in production.
   } catch (error) {
     console.error("Error sending OTP email:", error);
     res.status(500).json({ message: "Internal Server Error" });
