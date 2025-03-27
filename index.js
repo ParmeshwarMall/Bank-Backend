@@ -80,16 +80,6 @@ const userTrans = mongoose.Schema({
 const User = mongoose.model("users", userSchema);
 const Transaction = mongoose.model("transactions", userTrans);
 
-var currentDate = new Date();
-
-var day = currentDate.getDate();
-var month = currentDate.getMonth() + 1; // Months are zero-indexed, so January is 0
-var year = currentDate.getFullYear();
-
-var hours = currentDate.getHours();
-var minutes = currentDate.getMinutes();
-var seconds = currentDate.getSeconds();
-
 const verifyToken = async (req, res, next) => {
   const token = await req.cookies.token;
 
@@ -162,6 +152,45 @@ app.post("/", async (req, res) => {
         sameSite: "None", // Required for cross-origin cookies
       });
       return res.send("exist");
+    } else {
+      return res.send("Invalid Password");
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("An error occurred. Please try again later.");
+  }
+});
+
+app.post("/userotp", async (req, res) => {
+  const { username, userpassword } = req.body;
+  try {
+    const userExist = await User.findOne({ username });
+    if (!userExist) {
+      return res.send("Invalid Username");
+    }
+    const isPassCrt = await bcrypt.compare(userpassword, userExist.password);
+    if (isPassCrt) {
+      const email = userExist.email;
+      const otp = Math.floor(100000 + Math.random() * 900000);
+
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        secure: true,
+        port: 465,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      await transporter.sendMail({
+        from: `"Bharat Bank" <${process.env.EMAIL_USER}>`, // Corrected
+        to: email,
+        subject: "Verification",
+        html: otp_email_template.replace("{OTP_CODE}", otp), // Corrected replacement
+      });
+
+      res.status(200).json({ message: "OTP sent successfully", otp });
     } else {
       return res.send("Invalid Password");
     }
@@ -323,12 +352,16 @@ app.post("/deposite", authMiddleware, async (req, res) => {
     if (user) {
       const newAmount = user.amount + Number(amount);
       user.amount = newAmount;
+      const now = new Date();
+      const formattedDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+      const formattedTime = now.toTimeString().split(" ")[0]; // HH:MM:SS
+
       const newTrans = new Transaction({
         username,
         amount,
         mode: "Credit",
-        transdate: day + "/" + month + "/" + year,
-        transtime: hours + ":" + minutes + ":" + seconds,
+        transdate: formattedDate,
+        transtime: formattedTime,
       });
       await user.save();
       await newTrans.save();
@@ -350,12 +383,16 @@ app.post("/withdraw", authMiddleware, async (req, res) => {
       if (isPassCrt) {
         if (user.amount >= amount) {
           user.amount -= Number(amount);
+          const now = new Date();
+          const formattedDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+          const formattedTime = now.toTimeString().split(" ")[0]; // HH:MM:SS
+
           const newTrans = new Transaction({
             username,
             amount,
             mode: "Debit",
-            transdate: day + "/" + month + "/" + year,
-            transtime: hours + ":" + minutes + ":" + seconds,
+            transdate: formattedDate,
+            transtime: formattedTime,
           });
           await user.save();
           await newTrans.save();
@@ -388,19 +425,23 @@ app.post("/transfer", authMiddleware, async (req, res) => {
         if (sen.amount >= amount) {
           sen.amount -= Number(amount);
           rec.amount += Number(amount);
+          const now = new Date();
+          const formattedDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+          const formattedTime = now.toTimeString().split(" ")[0]; // HH:MM:SS
+
           const senNewTrans = new Transaction({
             username: senusername,
             amount,
             mode: "Debit",
-            transdate: day + "/" + month + "/" + year,
-            transtime: hours + ":" + minutes + ":" + seconds,
+            transdate: formattedDate,
+            transtime: formattedTime,
           });
           const recNewTrans = new Transaction({
             username: recusername,
             amount,
             mode: "Credit",
-            transdate: day + "/" + month + "/" + year,
-            transtime: hours + ":" + minutes + ":" + seconds,
+            transdate: formattedDate,
+            transtime: formattedTime,
           });
           await sen.save();
           await rec.save();
@@ -516,15 +557,17 @@ app.post("/updtdetail", async (req, res) => {
   try {
     const user = await User.findOne({ username: ousername });
     if (user) {
-      user.email = email;
-      user.contact = contact;
-      user.username = nusername;
-      user.add = add;
+      if (nusername) user.username = nusername;
+      if (email) user.email = email;
+      if (contact) user.contact = contact;
+      if (add) user.add = add;
       await user.save();
-      const updTrans = await Transaction.find({ username: ousername });
-      for (let i of updTrans) {
-        i.username = nusername;
-        await i.save();
+      if (nusername) {
+        const updTrans = await Transaction.find({ username: ousername });
+        for (let i of updTrans) {
+          i.username = nusername;
+          await i.save();
+        }
       }
       //await updTrans.save();
       res.send("Update details successfully");
@@ -659,8 +702,37 @@ app.post("/otpsend", async (req, res) => {
     await transporter.sendMail({
       from: `"Bharat Bank" <${process.env.EMAIL_USER}>`, // Corrected
       to: email,
-      subject: "Verify Your Email!",
+      subject: "Verification",
       html: otp_email_template.replace("{OTP_CODE}", otp), // Corrected replacement
+    });
+
+    res.status(200).json({ message: "OTP sent successfully", otp }); // Only return OTP for testing; remove in production.
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+app.post("/verifyemail", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const otp = Math.floor(100000 + Math.random() * 900000);
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      secure: true,
+      port: 465,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"Bharat Bank" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Verification",
+      html: otp_email_template.replace("{OTP_CODE}", otp),
     });
 
     res.status(200).json({ message: "OTP sent successfully", otp }); // Only return OTP for testing; remove in production.
