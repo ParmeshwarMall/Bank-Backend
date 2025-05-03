@@ -11,8 +11,8 @@ dotenv.config();
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    // origin: "https://bharat-bank.netlify.app",
+    // origin: "http://localhost:5173",
+    origin: "https://bharat-bank.netlify.app",
     credentials: true,
   })
 );
@@ -39,13 +39,13 @@ main()
   })
   .catch((err) => console.log(err));
 
-// async function main() {
-//   await mongoose.connect(mongoUrl2);
-// }
-
 async function main() {
-  await mongoose.connect(mongoUrl1);
+  await mongoose.connect(mongoUrl2);
 }
+
+// async function main() {
+//   await mongoose.connect(mongoUrl1);
+// }
 
 app.use("/user", userRoutes);
 app.use("/admin", adminRoutes);
